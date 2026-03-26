@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "elkpy"
+version = "0.1.0"
+description = "Python tool for reading and analyzing Elk code output files."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+  {name = "Ali Mert Turaclar", email = "alimert.turaclar@fu-berlin.de"}
+]
+dependencies = [
+  "numpy>=1.24"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
