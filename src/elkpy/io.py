@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 import numpy as np
 
@@ -24,6 +25,27 @@ class BandStructure:
 @dataclass
 class BandLines:
     lines: list[np.ndarray]
+
+@dataclass
+class ProjectedBandSegment:
+    x: np.ndarray
+    energy: np.ndarray
+    total: np.ndarray
+    projections: np.ndarray
+    # projections.shape = (nk, nproj)
+    # these are the columns after x, energy, total
+
+
+@dataclass
+class ProjectedBandStructure:
+    bands: list[ProjectedBandSegment]
+
+
+@dataclass(frozen=True)
+class ProjectionSelection:
+    bands: ProjectedBandStructure
+    columns: slice | tuple[int, ...]
+    label: str
 
 def _read_numeric_blocks(
         filepath: str | Path, min_columns: int = 2
@@ -115,3 +137,85 @@ def read_bands(file_path: str | Path) -> BandStructure:
         ]
 
     return BandStructure(bands=bands)
+
+# To-do: this is only as good as the column assignment.
+#        for something less brittle, the better long-term
+#        move is to add a helper that reads ELMIREP.OUT, when I have time.
+
+def read_projected_bands(file_path: str | Path) -> ProjectedBandStructure:
+    """
+    Read BAND_Sss_Aaaaa.OUT from Elk task 21 or 22.
+
+    Expected columns:
+        1: x
+        2: energy relative to E_F
+        3: total character on that atom
+        4...: projected characters
+    """
+
+    blocks = _read_numeric_blocks(file_path, min_columns=4)
+
+    bands = [
+        ProjectedBandSegment(
+            x=block[:, 0],
+            energy=block[:, 1],
+            total=block[:, 2],
+            projections=block[:, 3:],
+        )
+        for block in blocks
+    ]
+    return ProjectedBandStructure(bands=bands)
+
+def projection_sum(
+    segment: ProjectedBandSegment,
+    columns: slice | Sequence[int],
+) -> np.ndarray:
+    """
+    Sum selected projected-character columns for one band segment.
+    """
+
+    proj = segment.projections
+
+    if isinstance(columns, slice):
+        out = proj[:, columns]
+    else:
+        out = proj[:, list(columns)]
+
+    if out.ndim == 1:
+        return out
+
+    return out.sum(axis=1)
+
+def validate_projected_mesh(
+    ref: ProjectedBandStructure,
+    other: ProjectedBandStructure,
+    *,
+    check_energy: bool = False,
+) -> None:
+    """
+    Validate that two projected band datasets are compatible.
+
+    By default, checks that band count and x-grids match.
+    Optionally also checks energy arrays.
+    """
+
+    if len(ref.bands) != len(other.bands):
+        raise ValueError(
+            "Projected band files do not contain the same number of bands."
+        )
+
+    for iband, (a, b) in enumerate(zip(ref.bands, other.bands), start=1):
+        if a.x.shape != b.x.shape or not np.allclose(a.x, b.x):
+            raise ValueError(
+                f"Band {iband}: x grids do not match between files."
+            )
+
+        if a.energy.shape != b.energy.shape:
+            raise ValueError(
+                f"Band {iband}: energy array shapes do not match."
+            )
+
+        if check_energy and not np.allclose(a.energy, b.energy):
+            raise ValueError(
+                f"Band {iband}: energy arrays do not match."
+            )
