@@ -30,21 +30,28 @@ class BandLines:
 class ProjectedBandSegment:
     x: np.ndarray
     energy: np.ndarray
-    total: np.ndarray
-    projections: np.ndarray
-    # projections.shape = (nk, nproj)
-    # these are the columns after x, energy, total
+    characters: np.ndarray
+    # characters.shape = (nk, nchar)
+    # raw character columns after x and energy
 
+    @property
+    def nchar(self) -> int:
+        return self.characters.shape[1]
 
 @dataclass
 class ProjectedBandStructure:
     bands: list[ProjectedBandSegment]
 
+    @property
+    def nchar(self) -> int:
+        if not self.bands:
+            raise ValueError("ProjectedBandStructure contains no bands.")
+        return self.bands[0].nchar
 
 @dataclass(frozen=True)
 class ProjectionSelection:
     bands: ProjectedBandStructure
-    columns: slice | tuple[int, ...]
+    columns: tuple[int, ...]
     label: str
 
 def _read_numeric_blocks(
