@@ -260,3 +260,154 @@ def validate_projected_mesh(
             raise ValueError(
                 f"Band {iband}: energy arrays do not match."
             )
+
+def combine_projected_bands(
+    parts: Sequence[ProjectedBandStructure],
+    *,
+    check_energy: bool = True,
+) -> ProjectedBandStructure:
+    """
+    Sum several projected band datasets channel-by-channel.
+
+    Typical use:
+        combine the two Se atoms into one Se-projected band structure.
+    """
+
+    if not parts:
+        raise ValueError("No projected band datasets were provided.")
+
+    ref = parts[0]
+    for other in parts[1:]:
+        validate_projected_mesh(ref, other, check_energy=check_energy)
+
+    out_bands: list[ProjectedBandSegment] = []
+    for iband in range(len(ref.bands)):
+        x = ref.bands[iband].x
+        energy = ref.bands[iband].energy
+        chars = np.zeros_like(ref.bands[iband].characters)
+
+        for part in parts:
+            chars += part.bands[iband].characters
+
+        out_bands.append(
+            ProjectedBandSegment(
+                x=x,
+                energy=energy,
+                characters=chars,
+            )
+        )
+
+    return ProjectedBandStructure(bands=out_bands)
+
+
+def infer_orbital_slices(nchar: int) -> dict[str, slice]:
+    """
+    Infer contiguous angular-momentum channel slices.
+
+    Assumes the character columns are ordered as
+        s (1), p (3), d (5), f (7), g (9), ...
+
+    Example:
+        nchar = 16  ->  s: [0:1], p: [1:4], d: [4:9], f: [9:16]
+    """
+
+    labels = ["s", "p", "d", "f", "g", "h", "i", "j"]
+    out: dict[str, slice] = {}
+
+    start = 0
+    l = 0
+    remaining = nchar
+
+    while remaining > 0:
+        width = 2 * l + 1
+        if remaining < width:
+            raise ValueError(
+                f"Cannot infer orbital slices from nchar={nchar}. "
+                "It is not a complete sum of odd-number blocks."
+            )
+        if l >= len(labels):
+            raise ValueError(
+                "Too many angular-momentum channels for built-in labels."
+            )
+
+        out[labels[l]] = slice(start, start + width)
+        start += width
+        remaining -= width
+        l += 1
+
+    return out
+
+
+def select_projection(
+    bands: ProjectedBandStructure,
+    columns: slice | Sequence[int],
+    label: str,
+) -> ProjectionSelection:
+    """
+    Create a named projection selection.
+    """
+
+    idx = _normalize_columns(bands.nchar, columns)
+    return ProjectionSelection(bands=bands, columns=idx, label=label)
+
+
+def select_orbital(
+    bands: ProjectedBandStructure,
+    orbital: str,
+) -> ProjectionSelection:
+    """
+    Select a whole orbital channel, e.g. 's', 'p', 'd', or 'f'.
+
+    The mapping is inferred from the number of character columns.
+    """
+
+    slices = infer_orbital_slices(bands.nchar)
+
+    if orbital not in slices:
+        available = ", ".join(slices.keys())
+        raise KeyError(
+            f"Orbital {orbital!r} not available. Available: {available}"
+        )
+
+    idx = _normalize_columns(bands.nchar, slices[orbital])
+    return ProjectionSelection(bands=bands, columns=idx, label=orbital)
+
+
+def selected_weights(selection: ProjectionSelection) -> list[np.ndarray]:
+    """
+    Return one weight array per band for a selection.
+    """
+
+    return [
+        projection_sum(segment, selection.columns)
+        for segment in selection.bands.bands
+    ]
+
+
+def total_weights(bands: ProjectedBandStructure) -> list[np.ndarray]:
+    """
+    Return one total-character array per band.
+    """
+
+    return [total_character(segment) for segment in bands.bands]
+
+
+def dominant_orbital_labels(
+    bands: ProjectedBandStructure,
+) -> list[np.ndarray]:
+    """
+    For each band, return the dominant orbital label at each k-point.
+    """
+
+    slices = infer_orbital_slices(bands.nchar)
+    labels = tuple(slices.keys())
+
+    out: list[np.ndarray] = []
+    for segment in bands.bands:
+        weights = np.column_stack(
+            [projection_sum(segment, slices[label]) for label in labels]
+        )
+        argmax = np.argmax(weights, axis=1)
+        out.append(np.array([labels[i] for i in argmax], dtype=object))
+
+    return out
