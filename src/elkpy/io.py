@@ -226,7 +226,11 @@ def validate_projected_mesh(
     """
     Validate that two projected band datasets are compatible.
 
-    By default, checks that band count and x-grids match.
+    By default, checks:
+        - same number of bands
+        - same x-grid in each band
+        - same number of character columns
+
     Optionally also checks energy arrays.
     """
 
@@ -236,6 +240,12 @@ def validate_projected_mesh(
         )
 
     for iband, (a, b) in enumerate(zip(ref.bands, other.bands), start=1):
+        if a.nchar != b.nchar:
+            raise ValueError(
+                f"Band {iband}: different numbers of character columns "
+                f"({a.nchar} vs {b.nchar})."
+            )
+
         if a.x.shape != b.x.shape or not np.allclose(a.x, b.x):
             raise ValueError(
                 f"Band {iband}: x grids do not match between files."
