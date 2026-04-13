@@ -156,18 +156,20 @@ def read_projected_bands(file_path: str | Path) -> ProjectedBandStructure:
     Expected columns:
         1: x
         2: energy relative to E_F
-        3: total character on that atom
-        4...: projected characters
+        3...: raw character channels
+
+    No assumption is made that Elk writes a precomputed total weight
+    as a separate column. The total can be reconstructed by summing
+    the character channels.
     """
 
-    blocks = _read_numeric_blocks(file_path, min_columns=4)
+    blocks = _read_numeric_blocks(file_path, min_columns=3)
 
     bands = [
         ProjectedBandSegment(
             x=block[:, 0],
             energy=block[:, 1],
-            total=block[:, 2],
-            projections=block[:, 3:],
+            characters=block[:, 2:],
         )
         for block in blocks
     ]
