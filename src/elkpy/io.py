@@ -210,6 +210,13 @@ def projection_sum(
     idx = _normalize_columns(segment.nchar, columns)
     return segment.characters[:, idx].sum(axis=1)
 
+def total_character(segment: ProjectedBandSegment) -> np.ndarray:
+    """
+    Sum all character channels for one band segment.
+    """
+
+    return segment.characters.sum(axis=1)
+
 def validate_projected_mesh(
     ref: ProjectedBandStructure,
     other: ProjectedBandStructure,
