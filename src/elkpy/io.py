@@ -175,25 +175,40 @@ def read_projected_bands(file_path: str | Path) -> ProjectedBandStructure:
     ]
     return ProjectedBandStructure(bands=bands)
 
+def _normalize_columns(
+    nchar: int,
+    columns: slice | Sequence[int],
+) -> tuple[int, ...]:
+    """
+    Convert a slice or sequence into a validated tuple of column indices.
+    """
+
+    if isinstance(columns, slice):
+        idx = tuple(range(*columns.indices(nchar)))
+    else:
+        idx = tuple(int(i) for i in columns)
+
+    if not idx:
+        raise ValueError("No projection columns selected.")
+
+    for i in idx:
+        if i < 0 or i >= nchar:
+            raise IndexError(
+                f"Projection column {i} out of range for nchar={nchar}."
+            )
+
+    return idx
+
 def projection_sum(
     segment: ProjectedBandSegment,
     columns: slice | Sequence[int],
 ) -> np.ndarray:
     """
-    Sum selected projected-character columns for one band segment.
+    Sum selected character columns for one band segment.
     """
 
-    proj = segment.projections
-
-    if isinstance(columns, slice):
-        out = proj[:, columns]
-    else:
-        out = proj[:, list(columns)]
-
-    if out.ndim == 1:
-        return out
-
-    return out.sum(axis=1)
+    idx = _normalize_columns(segment.nchar, columns)
+    return segment.characters[:, idx].sum(axis=1)
 
 def validate_projected_mesh(
     ref: ProjectedBandStructure,
