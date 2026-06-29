@@ -74,6 +74,27 @@ class TDOSData:
     def __getitem__(self, idx: int) -> TDOSBlock:
         return self.blocks[idx]
 
+@dataclass 
+class PDOSSet:
+    energy: np.ndarray
+    channels: dict[str, np.ndarray]
+
+    def __getitem__(self, key: str) -> np.ndarray:
+        return self.channels[key]
+
+@dataclass 
+class PDOSData:
+    sets: list[PDOSSet]
+
+    def __iter__(self):
+        return iter(self.sets)
+
+    def __len__(self) -> int:
+        return len(self.sets)
+
+    def __getitem__(self, idx: int) -> PDOSSet:
+        return self.sets[idx]
+
 def _read_numeric_blocks(
         filepath: str | Path, min_columns: int = 2
         ) -> list[np.ndarray]:
