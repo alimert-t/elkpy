@@ -110,7 +110,11 @@ Container for band path marker lines:
 
 ## Contributing
 
-This project is still small and under active development. Bug reports, suggestions, and improvements are very welcome.
+This project is still small and under active development. Bug reports, suggestions, and improvements are very welcome, preferably over Codeberg and not GitHub.
+
+## To-Dos:
+
+- [ ] Add functions to validate total Column 3 of BAND_Sss_Aaaaa.OUT.
 
 ## License
 
