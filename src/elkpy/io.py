@@ -54,6 +54,25 @@ class ProjectionSelection:
     columns: tuple[int, ...]
     label: str
 
+@dataclass
+class TDOSBlock:
+    energy: np.ndarray
+    tdos: np.ndarray
+
+
+@dataclass
+class TDOSData:
+    blocks: list[TDOSBlock]
+
+    def __iter__(self):
+        return iter(self.blocks)
+
+    def __len__(self) -> int:
+        return len(self.blocks)
+
+    def __getitem__(self, idx: int) -> TDOSBlock:
+        return self.blocks[idx]
+
 def _read_numeric_blocks(
         filepath: str | Path, min_columns: int = 2
         ) -> list[np.ndarray]:
@@ -98,6 +117,33 @@ def _read_numeric_blocks(
             blocks.append(np.array(current, dtype=float))
 
     return blocks
+
+def read_tdos(file_path: str | Path) -> TDOSData:
+    """
+    Reads TDOS.OUT from Elk.
+
+    Elk can write multiple TDOS blocks separated by blank lines,
+    for example positive/negative spin or SOC-resolved channels.
+    Each block is returned as a TDOSBlock with:
+
+        block.energy
+        block.tdos
+    """
+
+    blocks = _read_numeric_blocks(file_path, min_columns=2)
+
+    if not blocks:
+        raise ValueError(f"{file_path}: no TDOS data blocks found.")
+
+    tdos_blocks = [
+        TDOSBlock(
+            energy=block[:, 0],
+            tdos=block[:, 1],
+        )
+        for block in blocks
+    ]
+
+    return TDOSData(blocks=tdos_blocks)
 
 def read_epsilon(file_path: str | Path) -> EpsilonData:
     """
