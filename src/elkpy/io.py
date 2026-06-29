@@ -30,9 +30,10 @@ class BandLines:
 class ProjectedBandSegment:
     x: np.ndarray
     energy: np.ndarray
-    characters: np.ndarray
-    # characters.shape = (nk, nchar)
-    # raw character columns after x and energy
+    total: np.ndarray
+    # l-resolved only, columns 4 and onward, see elk.pdf for detailed 
+    # descripton of bandstr subroutine.
+    characters: np.ndarray 
 
     @property
     def nchar(self) -> int:
@@ -202,20 +203,18 @@ def read_projected_bands(file_path: str | Path) -> ProjectedBandStructure:
     Expected columns:
         1: x
         2: energy relative to E_F
-        3...: raw character channels
-
-    No assumption is made that Elk writes a precomputed total weight
-    as a separate column. The total can be reconstructed by summing
-    the character channels.
+        3: total 
+        4...: raw l-resolved character channels
     """
 
-    blocks = _read_numeric_blocks(file_path, min_columns=3)
+    blocks = _read_numeric_blocks(file_path, min_columns=4)
 
     bands = [
         ProjectedBandSegment(
             x=block[:, 0],
             energy=block[:, 1],
-            characters=block[:, 2:],
+            total=block[:, 2],
+            characters=block[:, 3:],
         )
         for block in blocks
     ]
@@ -335,10 +334,15 @@ def combine_projected_bands(
         for part in parts:
             chars += part.bands[iband].characters
 
+        total = np.zeros_like(ref.bands[iband].total)
+        for part in parts:
+            total += part.bands[iband].total
+
         out_bands.append(
             ProjectedBandSegment(
                 x=x,
                 energy=energy,
+                total=total,
                 characters=chars,
             )
         )
