@@ -6,6 +6,13 @@ from .io import (
     ProjectedBandSegment,
     ProjectedBandStructure,
     ProjectionSelection,
+    TDOSBlock,
+    TDOSData,
+    PDOSSet,
+    PDOSData,
+    read_tdos,
+    read_pdos_orbital_channels,
+    split_pdos_sets,
     read_epsilon,
     read_bandlines,
     read_bands,
@@ -20,6 +27,11 @@ from .io import (
     selected_weights,
     total_weights,
     dominant_orbital_labels,
+)
+
+from .optics import (
+    add_drude_term,
+    get_loss_function,
 )
 
 __all__ = [
