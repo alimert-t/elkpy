@@ -167,6 +167,138 @@ def read_tdos(file_path: str | Path) -> TDOSData:
 
     return TDOSData(blocks=tdos_blocks)
 
+def _complete_channel_counts_up_to(max_blocks: int) -> list[int]:
+    """
+    Return cumulative odd-number channel counts:
+        1, 4, 9, 16, ...
+    corresponding to:
+        s
+        s+p
+        s+p+d
+        s+p+d+f
+        ...
+    """
+    counts = []
+    total = 0
+    l = 0
+    while True:
+        total += 2 * l + 1
+        if total > max_blocks:
+            break
+        counts.append(total)
+        l += 1
+    return counts
+
+
+def _infer_pdos_channel_count(nblocks: int) -> int:
+    """
+    Infer how many m-resolved PDOS blocks belong to one PDOS set.
+
+    Tries cumulative odd-number channel counts:
+        1, 4, 9, 16, ...
+    and prefers the largest one that divides nblocks and gives
+    either one set or two sets.
+    """
+    candidates = []
+    for nchar in _complete_channel_counts_up_to(nblocks):
+        if nblocks % nchar == 0:
+            nsets = nblocks // nchar
+            if nsets in (1, 2):
+                candidates.append(nchar)
+
+    if not candidates:
+        raise ValueError(
+            f"Could not infer PDOS channel count from {nblocks} blocks. "
+            "Expected 1 or 2 PDOS sets built from cumulative odd-number channel counts."
+        )
+
+    return max(candidates)
+
+def read_pdos_orbital_channels(file_path: str | Path) -> PDOSData:
+    """
+    Read PDOS_Sss_Aaaaa.OUT from Elk.
+
+    The file is assumed to contain m-resolved PDOS blocks separated by blank lines.
+    These blocks are grouped into one or two PDOS sets, consistent with the TDOS logic:
+    raw file values are preserved exactly, with no sign flipping.
+
+    Returns:
+        PDOSData containing one or two PDOSSet objects.
+
+    Each PDOSSet has:
+        - energy
+        - channels dict with keys like "s", "p", "d", "f", ...
+        - "total"
+    """
+    blocks = _read_numeric_blocks(file_path, min_columns=2)
+
+    if not blocks:
+        raise ValueError(f"{file_path}: no PDOS data blocks found.")
+
+    nblocks = len(blocks)
+    nchar = _infer_pdos_channel_count(nblocks)
+
+    if nblocks % nchar != 0:
+        raise ValueError(
+            f"{file_path}: number of blocks ({nblocks}) is not divisible "
+            f"by inferred channel count ({nchar})."
+        )
+
+    nsets = nblocks // nchar
+    slices = infer_orbital_slices(nchar)
+
+    out_sets: list[PDOSSet] = []
+
+    for iset in range(nsets):
+        subset = blocks[iset * nchar:(iset + 1) * nchar]
+
+        energy = subset[0][:, 0]
+
+        for iblock, block in enumerate(subset, start=1):
+            if block.shape[1] < 2:
+                raise ValueError(
+                    f"{file_path}: PDOS block {iblock} has fewer than 2 columns."
+                )
+            if block[:, 0].shape != energy.shape or not np.allclose(block[:, 0], energy):
+                raise ValueError(
+                    f"{file_path}: energy mesh mismatch inside PDOS set {iset + 1}."
+                )
+
+        channels: dict[str, np.ndarray] = {}
+
+        for label, sl in slices.items():
+            channels[label] = np.sum(
+                [subset[i][:, 1] for i in range(sl.start, sl.stop)],
+                axis=0,
+            )
+
+        channels["total"] = np.sum(
+            [block[:, 1] for block in subset],
+            axis=0,
+        )
+
+        out_sets.append(PDOSSet(energy=energy, channels=channels))
+
+    return PDOSData(sets=out_sets)
+
+def split_pdos_sets(pdos: PDOSData) -> tuple[PDOSSet, PDOSSet | None]:
+    """
+    Split PDOSData into (up, down_or_none).
+
+    This preserves raw file values exactly.
+    No sign flipping is performed here.
+    """
+    if len(pdos) == 1:
+        return pdos[0], None
+
+    if len(pdos) == 2:
+        return pdos[0], pdos[1]
+
+    raise ValueError(
+        f"Expected 1 or 2 PDOS sets, got {len(pdos)}. "
+        "Inspect the file manually."
+    )
+
 def read_epsilon(file_path: str | Path) -> EpsilonData:
     """
     Reads EPSILON_*.OUT output from Elk tasks. 
