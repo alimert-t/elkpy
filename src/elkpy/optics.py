@@ -20,11 +20,11 @@ def _build_complex_imag_eps_grid(
     eps_complex : np.ndarray
         Complex dielectric function on that grid.
     """
-    omega_imag = np.assaray(eps_obj.omega_imag, dtype=float)
-    eps_imag = np.assaray(eps_obj.eps_imag, dtype=float)
+    omega_imag = np.asarray(eps_obj.omega_imag, dtype=float)
+    eps_imag = np.asarray(eps_obj.eps_imag, dtype=float)
 
-    omega_real = np.assaray(eps_obj.omega_real, dtype=float)
-    eps_real = np.assaray(eps_obj.eps_real, dtype=float)
+    omega_real = np.asarray(eps_obj.omega_real, dtype=float)
+    eps_real = np.asarray(eps_obj.eps_real, dtype=float)
 
     if omega_real.shape != omega_imag.shape or not np.allclose(
             omega_real, omega_imag):
